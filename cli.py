@@ -32,3 +32,6 @@ def main():
         for i, t in enumerate(torrents):
             print(f"[{i + 1}] {t['name']}")
             print(f"     🔗 {t['link']}")
+
+if __name__ == "__main__":
+    main()
