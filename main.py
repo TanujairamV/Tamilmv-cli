@@ -18,7 +18,14 @@ def fetch_rss_entries(url):
 def extract_magnets(description_html):
     soup = BeautifulSoup(description_html, "lxml")
     links = soup.find_all("a", href=True)
-    magnets = [(link.text.strip(), link["href"]) for link in links if link["href"].startswith("magnet:?")]
+    magnets = []
+    for link in links:
+        href = link["href"]
+        if href.startswith("magnet:?"):
+            title = link.text.strip()
+            quality_match = re.search(r"(2160p|1080p|720p|480p|x264|x265|HEVC|AVC|DD[\+\d\.]*|AAC[\d\.]*|HQ|LQ|ESub)", title, re.IGNORECASE)
+            quality = quality_match.group(0).upper() if quality_match else "UNKNOWN"
+            magnets.append((quality, href))
     return magnets
 
 def main():
@@ -43,15 +50,15 @@ def main():
         return
 
     selected = entries[choice]
-    print(f"\n📌 Fetching magnets for: [bold]{selected.title}[/bold]\n")
+    print(f"\n📌 Fetching magnets for: {selected.title}\n")
     magnets = extract_magnets(selected.description)
 
     if not magnets:
         print("❌ No magnet links found.")
         return
 
-    for i, (title, _) in enumerate(magnets, start=1):
-        print(f"[{i}] {title}")
+    for i, (quality, _) in enumerate(magnets, start=1):
+        print(f"[{i}] {quality}")
 
     try:
         m_choice = int(input("\n[?] Choose a magnet link to view: ")) - 1
