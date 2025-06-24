@@ -1,61 +1,49 @@
-import cloudscraper
 import feedparser
+import requests
 from bs4 import BeautifulSoup
 import re
+import subprocess
+import os
 
 RSS_URL = "https://www.1tamilmv.pet/index.php?/forums/forum/11-web-hd-itunes-hd-bluray.xml"
 
+def clear_terminal():
+    os.system("clear" if os.name == "posix" else "cls")
+
 def fetch_rss_entries(url):
     try:
-        scraper = cloudscraper.create_scraper()
-        r = scraper.get(url, timeout=15)
-        r.raise_for_status()
-        feed = feedparser.parse(r.content)
-        return feed.entries
+        response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        soup = BeautifulSoup(response.content, "xml")
+        return soup.find_all("item")
     except Exception as e:
         print(f"❌ Failed to fetch RSS feed: {e}")
         return []
 
-def extract_magnets(description_html):
-    soup = BeautifulSoup(description_html, "lxml")
-    magnets = []
+def extract_title(entry):
+    return entry.title.text.strip()
 
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if not href.startswith("magnet:?"):
-            continue
+def extract_link(entry):
+    return entry.link.text.strip()
 
-        # Get nearby context
-        quality_context = ""
+def extract_description(entry):
+    desc = entry.description.text.strip()
+    return re.sub(r'<[^>]+>', '', desc)  # Strip HTML
 
-        # Try previous sibling text
-        if a.previous_sibling and isinstance(a.previous_sibling, str):
-            quality_context += a.previous_sibling.strip()
+def extract_magnet_links(description):
+    magnet_pattern = re.compile(r'(magnet:\?xt=urn:btih:[^\s<"]+)')
+    magnets = magnet_pattern.findall(description)
 
-        # Try parent text
-        if a.parent and a.parent.text:
-            quality_context += " " + a.parent.get_text(strip=True)
-
-        # Try next sibling
-        if a.next_sibling and isinstance(a.next_sibling, str):
-            quality_context += " " + a.next_sibling.strip()
-
-        # Search for common quality keywords
-        match = re.search(
-            r"(2160p|1080p|720p|480p|x264|x265|HEVC|AVC|DD\+?[0-9\.]*|AAC[0-9\.]*|ESub)",
-            quality_context,
-            re.IGNORECASE,
-        )
-        quality = match.group(1).upper() if match else "UNKNOWN"
-
-        magnets.append((quality, href))
-
-    return magnets
-
+    labeled = []
+    for magnet in magnets:
+        quality_match = re.search(r'(\d{3,4}p)', magnet)
+        label = quality_match.group(1) if quality_match else "UNKNOWN"
+        labeled.append((label, magnet))
+    return labeled
 
 def main():
+    clear_terminal()
     print("─" * 80)
-    print(" 🎬 TamilMV CLI Scraper via RSS ".center(80, "─"))
+    print(" " * 25 + "🎬 TamilMV CLI Scraper via RSS")
     print("─" * 80)
 
     entries = fetch_rss_entries(RSS_URL)
@@ -63,38 +51,43 @@ def main():
         print("❌ No entries found.")
         return
 
-    for i, e in enumerate(entries, 1):
-        name = e.title.split(" (")[0].strip()
-        print(f"[{i}] {name}")
+    titles = [extract_title(entry) for entry in entries]
+    links = [extract_link(entry) for entry in entries]
 
-    try:
-        idx = int(input("\n[?] Choose a movie/show to list magnet links: ")) - 1
-        if idx < 0 or idx >= len(entries):
-            raise IndexError
-    except (ValueError, IndexError):
+    for i, title in enumerate(titles, 1):
+        print(f"[{i}] {title} | {links[i-1]}")
+
+    choice = input("\n[?] Choose a movie/show to stream: ").strip()
+    if not choice.isdigit() or not (1 <= int(choice) <= len(entries)):
         print("❌ Invalid choice.")
         return
 
-    entry = entries[idx]
-    print(f"\n📌 Fetching magnets for: {entry.title}\n")
-    magnets = extract_magnets(entry.description)
+    index = int(choice) - 1
+    chosen_entry = entries[index]
+    description = extract_description(chosen_entry)
+    magnet_links = extract_magnet_links(description)
 
-    if not magnets:
+    if not magnet_links:
         print("❌ No magnet links found.")
         return
 
-    for j, (quality, _) in enumerate(magnets, 1):
-        print(f"[{j}] {quality}")
+    print("\n🎞️ Available Streams:\n")
+    for i, (quality, _) in enumerate(magnet_links, 1):
+        print(f"[{i}] {quality}")
 
-    try:
-        m_idx = int(input("\n[?] Choose a magnet link to view: ")) - 1
-        if m_idx < 0 or m_idx >= len(magnets):
-            raise IndexError
-    except (ValueError, IndexError):
-        print("❌ Invalid choice.")
+    stream_choice = input("\n[?] Choose a stream to play (or press Enter to cancel): ").strip()
+    if not stream_choice.isdigit() or not (1 <= int(stream_choice) <= len(magnet_links)):
+        print("❌ Cancelled.")
         return
 
-    print(f"\n🔗 Magnet Link:\n{magnets[m_idx][1]}")
+    selected_link = magnet_links[int(stream_choice) - 1][1]
+    print(f"\n🚀 Launching stream with mpv: {selected_link}\n")
+    
+    try:
+        subprocess.run(["mpv", selected_link])
+    except FileNotFoundError:
+        print("❌ mpv is not installed or not found in PATH.")
+        print("👉 Install with: sudo pacman -S mpv")
 
 if __name__ == "__main__":
     main()
