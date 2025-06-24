@@ -18,20 +18,24 @@ def fetch_rss_entries(url):
 
 def extract_magnets(description_html):
     soup = BeautifulSoup(description_html, "lxml")
-    anchors = soup.find_all("a", href=True)
     magnets = []
-    for a in anchors:
+
+    # Loop through all magnet links
+    for a in soup.find_all("a", href=True):
         href = a["href"]
         if href.startswith("magnet:?"):
-            title = a.text.strip()
-            # Extract quality from title
-            quality = "UNKNOWN"
+            # Look around the magnet tag for quality
+            text_context = a.parent.get_text(" ", strip=True)
+
+            # Try to extract the quality from nearby context
             match = re.search(r"(2160p|1080p|720p|480p|x264|x265|HEVC|AVC|DD\+?[0-9\.]*|AAC[0-9\.]*|ESub)",
-                              title, re.IGNORECASE)
-            if match:
-                quality = match.group(1).upper()
+                              text_context, re.IGNORECASE)
+            quality = match.group(1).upper() if match else "UNKNOWN"
+
             magnets.append((quality, href))
+
     return magnets
+
 
 def main():
     print("─" * 80)
