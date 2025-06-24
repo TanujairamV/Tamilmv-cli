@@ -1,89 +1,79 @@
 import requests
-from bs4 import BeautifulSoup
 import feedparser
+from bs4 import BeautifulSoup
 import re
-from urllib.parse import urlparse, parse_qs, unquote
-import pyperclip
 
 RSS_URL = "https://www.1tamilmv.pet/index.php?/forums/forum/11-web-hd-itunes-hd-bluray.xml"
 
 def fetch_rss_entries(url):
     try:
-        response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/126.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer": "https://www.google.com/",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        }
+        response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         return feedparser.parse(response.content).entries
     except Exception as e:
         print(f"❌ Failed to fetch RSS feed: {e}")
         return []
 
-def extract_magnet_links(post_url):
-    try:
-        response = requests.get(post_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        description_div = soup.find("div", class_="ipsType_richText")
-        if not description_div:
-            return []
-
-        # Search for all magnet links
-        magnets = re.findall(r'magnet:\?xt=urn:btih:[a-zA-Z0-9&%=.?_\-:/]+', description_div.decode())
-        return list(set(magnets))  # Remove duplicates
-    except Exception as e:
-        print(f"❌ Failed to fetch post content: {e}")
-        return []
-
-def extract_display_name(magnet_link):
-    try:
-        parsed = urlparse(magnet_link)
-        params = parse_qs(parsed.query)
-        return unquote(params.get("dn", ["Unknown Title"])[0])
-    except Exception:
-        return "Unknown Title"
+def extract_magnets(description_html):
+    soup = BeautifulSoup(description_html, "lxml")
+    links = soup.find_all("a", href=True)
+    magnets = [(link.text.strip(), link["href"]) for link in links if link["href"].startswith("magnet:?")]
+    return magnets
 
 def main():
-    print("────────────────────────────────────────────────────────────────────────────────")
+    print("─" * 80)
     print("                         🎬 TamilMV CLI Scraper via RSS                          ")
-    print("────────────────────────────────────────────────────────────────────────────────")
+    print("─" * 80)
 
     entries = fetch_rss_entries(RSS_URL)
     if not entries:
         print("❌ No entries found.")
         return
 
-    print("\n🎞️ Available Movies:")
-    for i, entry in enumerate(entries, start=1):
-        print(f"[{i}] {entry.title.split('(')[0].strip()}")
+    for idx, entry in enumerate(entries):
+        print(f"[{idx + 1}] {entry.title} | {entry.link}")
 
     try:
-        choice = int(input("\n[?] Choose a movie/show to view magnet links: "))
-        if not (1 <= choice <= len(entries)):
-            raise ValueError
-    except ValueError:
-        print("❌ Invalid selection.")
+        choice = int(input("\n[?] Choose a movie/show to list magnet links: ")) - 1
+        if not (0 <= choice < len(entries)):
+            raise IndexError
+    except (ValueError, IndexError):
+        print("❌ Invalid choice.")
         return
 
-    selected_entry = entries[choice - 1]
-    magnets = extract_magnet_links(selected_entry.link)
+    selected = entries[choice]
+    magnets = extract_magnets(selected.description)
 
     if not magnets:
-        print("❌ No magnet links found.")
+        print("❌ No magnet links found in the description.")
         return
 
-    print("\n🔗 Magnet Titles:")
-    titles = [extract_display_name(link) for link in magnets]
-    for idx, title in enumerate(titles, 1):
-        print(f"[{idx}] {title}")
+    print(f"\n🔗 Available Magnet Links for: {selected.title}\n")
+    for i, (title, _) in enumerate(magnets):
+        print(f"[{i + 1}] {title}")
 
     try:
-        m_choice = int(input("\n[?] Choose a magnet link to copy: "))
-        if 1 <= m_choice <= len(magnets):
-            selected_magnet = magnets[m_choice - 1]
-            pyperclip.copy(selected_magnet)
-            print(f"\n✅ Magnet copied to clipboard:\n{selected_magnet}")
-        else:
-            print("❌ Invalid choice.")
-    except ValueError:
-        print("❌ Please enter a valid number.")
+        link_choice = int(input("\n[?] Choose a magnet link to view: ")) - 1
+        if not (0 <= link_choice < len(magnets)):
+            raise IndexError
+    except (ValueError, IndexError):
+        print("❌ Invalid choice.")
+        return
+
+    print(f"\n🔗 Magnet Link:\n{magnets[link_choice][1]}\n")
 
 if __name__ == "__main__":
     main()
