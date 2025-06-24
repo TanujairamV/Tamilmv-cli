@@ -1,7 +1,6 @@
 # tamilmv.py
 import cloudscraper
 from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 
 class TamilmvParser:
@@ -9,7 +8,18 @@ class TamilmvParser:
         self.user_query = user_query.strip()
         self.user_query_words = self.user_query.split()
         self.domain = "https://www.1tamilmv.pet"
-        self.scraper = cloudscraper.create_scraper()
+        self.scraper = cloudscraper.create_scraper(browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'mobile': False
+        })
+        self.scraper.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                          '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Connection': 'keep-alive'
+        })
 
     def _log(self, message):
         print(f"[DEBUG] {message}")
