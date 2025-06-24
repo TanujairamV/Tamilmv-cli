@@ -20,19 +20,35 @@ def extract_magnets(description_html):
     soup = BeautifulSoup(description_html, "lxml")
     magnets = []
 
-    # Loop through all magnet links
     for a in soup.find_all("a", href=True):
         href = a["href"]
-        if href.startswith("magnet:?"):
-            # Look around the magnet tag for quality
-            text_context = a.parent.get_text(" ", strip=True)
+        if not href.startswith("magnet:?"):
+            continue
 
-            # Try to extract the quality from nearby context
-            match = re.search(r"(2160p|1080p|720p|480p|x264|x265|HEVC|AVC|DD\+?[0-9\.]*|AAC[0-9\.]*|ESub)",
-                              text_context, re.IGNORECASE)
-            quality = match.group(1).upper() if match else "UNKNOWN"
+        # Get nearby context
+        quality_context = ""
 
-            magnets.append((quality, href))
+        # Try previous sibling text
+        if a.previous_sibling and isinstance(a.previous_sibling, str):
+            quality_context += a.previous_sibling.strip()
+
+        # Try parent text
+        if a.parent and a.parent.text:
+            quality_context += " " + a.parent.get_text(strip=True)
+
+        # Try next sibling
+        if a.next_sibling and isinstance(a.next_sibling, str):
+            quality_context += " " + a.next_sibling.strip()
+
+        # Search for common quality keywords
+        match = re.search(
+            r"(2160p|1080p|720p|480p|x264|x265|HEVC|AVC|DD\+?[0-9\.]*|AAC[0-9\.]*|ESub)",
+            quality_context,
+            re.IGNORECASE,
+        )
+        quality = match.group(1).upper() if match else "UNKNOWN"
+
+        magnets.append((quality, href))
 
     return magnets
 
