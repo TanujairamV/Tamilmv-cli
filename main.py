@@ -8,29 +8,34 @@ RSS_URL = "https://www.1tamilmv.pet/index.php?/forums/forum/11-web-hd-itunes-hd-
 def fetch_rss_entries(url):
     try:
         scraper = cloudscraper.create_scraper()
-        response = scraper.get(url, timeout=15)
-        response.raise_for_status()
-        return feedparser.parse(response.content).entries
+        r = scraper.get(url, timeout=15)
+        r.raise_for_status()
+        feed = feedparser.parse(r.content)
+        return feed.entries
     except Exception as e:
         print(f"❌ Failed to fetch RSS feed: {e}")
         return []
 
 def extract_magnets(description_html):
     soup = BeautifulSoup(description_html, "lxml")
-    links = soup.find_all("a", href=True)
+    anchors = soup.find_all("a", href=True)
     magnets = []
-    for link in links:
-        href = link["href"]
+    for a in anchors:
+        href = a["href"]
         if href.startswith("magnet:?"):
-            title = link.text.strip()
-            quality_match = re.search(r"(2160p|1080p|720p|480p|x264|x265|HEVC|AVC|DD[\+\d\.]*|AAC[\d\.]*|HQ|LQ|ESub)", title, re.IGNORECASE)
-            quality = quality_match.group(0).upper() if quality_match else "UNKNOWN"
+            title = a.text.strip()
+            # Extract quality from title
+            quality = "UNKNOWN"
+            match = re.search(r"(2160p|1080p|720p|480p|x264|x265|HEVC|AVC|DD\+?[0-9\.]*|AAC[0-9\.]*|ESub)",
+                              title, re.IGNORECASE)
+            if match:
+                quality = match.group(1).upper()
             magnets.append((quality, href))
     return magnets
 
 def main():
     print("─" * 80)
-    print("                         🎬 TamilMV CLI Scraper via RSS                          ")
+    print(" 🎬 TamilMV CLI Scraper via RSS ".center(80, "─"))
     print("─" * 80)
 
     entries = fetch_rss_entries(RSS_URL)
@@ -38,37 +43,38 @@ def main():
         print("❌ No entries found.")
         return
 
-    for idx, entry in enumerate(entries, start=1):
-        print(f"[{idx}] {entry.title.split(' (')[0].strip()}")
+    for i, e in enumerate(entries, 1):
+        name = e.title.split(" (")[0].strip()
+        print(f"[{i}] {name}")
 
     try:
-        choice = int(input("\n[?] Choose a movie/show to list magnet links: ")) - 1
-        if choice < 0 or choice >= len(entries):
+        idx = int(input("\n[?] Choose a movie/show to list magnet links: ")) - 1
+        if idx < 0 or idx >= len(entries):
             raise IndexError
     except (ValueError, IndexError):
         print("❌ Invalid choice.")
         return
 
-    selected = entries[choice]
-    print(f"\n📌 Fetching magnets for: {selected.title}\n")
-    magnets = extract_magnets(selected.description)
+    entry = entries[idx]
+    print(f"\n📌 Fetching magnets for: {entry.title}\n")
+    magnets = extract_magnets(entry.description)
 
     if not magnets:
         print("❌ No magnet links found.")
         return
 
-    for i, (quality, _) in enumerate(magnets, start=1):
-        print(f"[{i}] {quality}")
+    for j, (quality, _) in enumerate(magnets, 1):
+        print(f"[{j}] {quality}")
 
     try:
-        m_choice = int(input("\n[?] Choose a magnet link to view: ")) - 1
-        if m_choice < 0 or m_choice >= len(magnets):
+        m_idx = int(input("\n[?] Choose a magnet link to view: ")) - 1
+        if m_idx < 0 or m_idx >= len(magnets):
             raise IndexError
     except (ValueError, IndexError):
         print("❌ Invalid choice.")
         return
 
-    print(f"\n🔗 Magnet Link:\n{magnets[m_choice][1]}\n")
+    print(f"\n🔗 Magnet Link:\n{magnets[m_idx][1]}")
 
 if __name__ == "__main__":
     main()
