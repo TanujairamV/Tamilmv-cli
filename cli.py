@@ -1,6 +1,5 @@
 # cli.py
 from tamilmv import TamilmvParser
-from pprint import pprint
 
 def main():
     print("🎬 TamilMV CLI Scraper")
@@ -9,7 +8,7 @@ def main():
     results = parser.get_search_results()
 
     if not results:
-        print("No results found.")
+        print("❌ No results found.")
         return
 
     print("\nAvailable Results:\n")
@@ -28,11 +27,8 @@ def main():
     torrents = parser.get_torrents_from_listing(results[choice]['link'])
 
     if not torrents:
-        print("No torrents found.")
+        print("❌ No torrents found.")
     else:
         for i, t in enumerate(torrents):
             print(f"[{i + 1}] {t['name']}")
             print(f"     🔗 {t['link']}")
-
-if __name__ == "__main__":
-    main()
