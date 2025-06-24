@@ -2,13 +2,14 @@
 import cloudscraper
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
+import urllib.parse
 
 class TamilmvParser:
     def __init__(self, user_query: str):
         self.user_query = user_query.strip()
         self.user_query_words = self.user_query.split()
-        self.domain = "https://www.1tamilmv.pet"  # you can switch to .one or .vip if blocked
-        self.endpoint = "index.php?/search/&q="
+        self.domain = "https://www.1tamilmv.pet"
+        self.endpoint = "index.php?/search/"
         self.scraper = cloudscraper.create_scraper()
 
     def _log(self, message):
@@ -47,7 +48,8 @@ class TamilmvParser:
 
     def get_search_results(self):
         try:
-            full_url = f'{self.domain}/{self.endpoint}{self.user_query}'
+            encoded_query = urllib.parse.quote(self.user_query)
+            full_url = f'{self.domain}/{self.endpoint}?q={encoded_query}&quick=1'
             self._log(f"Searching: {full_url}")
             resp = self.scraper.get(full_url, timeout=15)
             if resp.status_code != 200:
