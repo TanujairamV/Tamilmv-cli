@@ -9,7 +9,6 @@ class TamilmvParser:
         self.user_query = user_query.strip()
         self.user_query_words = self.user_query.split()
         self.domain = "https://www.1tamilmv.pet"
-        self.endpoint = "index.php?/search/"
         self.scraper = cloudscraper.create_scraper()
 
     def _log(self, message):
@@ -18,15 +17,13 @@ class TamilmvParser:
     def _process_listing(self, result):
         text = result.text.strip()
         self._log(f"Processing result: {text}")
-        if any(word.lower() in text.lower() for word in self.user_query_words):
-            link = result.find('a', href=True)
-            if link:
-                url = self.domain + link['href']
-                self._log(f"Matched title: {text}, Link: {url}")
-                return {
-                    'title': text,
-                    'link': url
-                }
+        link = result.find('a', href=True)
+        if link:
+            url = self.domain + link['href']
+            return {
+                'title': text,
+                'link': url
+            }
 
     def _fetch_torrent_links(self, url):
         self._log(f"Fetching torrents from: {url}")
@@ -49,7 +46,13 @@ class TamilmvParser:
     def get_search_results(self):
         try:
             encoded_query = urllib.parse.quote(self.user_query)
-            full_url = f'{self.domain}/{self.endpoint}?q={encoded_query}&quick=1'
+            full_url = (
+                f"{self.domain}/index.php?/search/"
+                f"&q={encoded_query}"
+                f"&search_and_or=and"
+                f"&search_in=titles"
+                f"&sortby=relevancy"
+            )
             self._log(f"Searching: {full_url}")
             resp = self.scraper.get(full_url, timeout=15)
             if resp.status_code != 200:
