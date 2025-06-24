@@ -7,7 +7,7 @@ class TamilmvParser:
     def __init__(self, user_query: str):
         self.user_query = user_query.strip()
         self.user_query_words = self.user_query.split()
-        self.domain = "https://www.1tamilmv.com"  # you can switch to .one or .vip if blocked
+        self.domain = "https://www.1tamilmv.pet"  # you can switch to .one or .vip if blocked
         self.endpoint = "index.php?/search/&q="
         self.scraper = cloudscraper.create_scraper()
 
