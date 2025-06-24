@@ -1,5 +1,5 @@
+import cloudscraper
 import feedparser
-import requests
 from bs4 import BeautifulSoup
 import re
 import subprocess
@@ -12,31 +12,33 @@ def clear_terminal():
 
 def fetch_rss_entries(url):
     try:
-        response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(response.content, "xml")
-        return soup.find_all("item")
+        scraper = cloudscraper.create_scraper()
+        r = scraper.get(url, timeout=15)
+        r.raise_for_status()
+        feed = feedparser.parse(r.content)
+        return feed.entries
     except Exception as e:
         print(f"❌ Failed to fetch RSS feed: {e}")
         return []
 
-def extract_title(entry):
-    return entry.title.text.strip()
-
-def extract_link(entry):
-    return entry.link.text.strip()
-
-def extract_description(entry):
-    desc = entry.description.text.strip()
-    return re.sub(r'<[^>]+>', '', desc)  # Strip HTML
+def fetch_post_description(post_url):
+    try:
+        scraper = cloudscraper.create_scraper()
+        r = scraper.get(post_url, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.content, "lxml")
+        desc = soup.find("div", class_="ipsType_richText")
+        return desc.get_text(separator=" ", strip=True) if desc else ""
+    except Exception as e:
+        print(f"❌ Failed to fetch post page: {e}")
+        return ""
 
 def extract_magnet_links(description):
-    magnet_pattern = re.compile(r'(magnet:\?xt=urn:btih:[^\s<"]+)')
-    magnets = magnet_pattern.findall(description)
-
+    magnets = re.findall(r'(magnet:\?xt=urn:btih:[^\s\"\'<>]+)', description)
     labeled = []
     for magnet in magnets:
-        quality_match = re.search(r'(\d{3,4}p)', magnet)
-        label = quality_match.group(1) if quality_match else "UNKNOWN"
+        match = re.search(r'(\d{3,4}p|x264|x265|HEVC)', magnet, re.IGNORECASE)
+        label = match.group(1).upper() if match else "UNKNOWN"
         labeled.append((label, magnet))
     return labeled
 
@@ -51,43 +53,39 @@ def main():
         print("❌ No entries found.")
         return
 
-    titles = [extract_title(entry) for entry in entries]
-    links = [extract_link(entry) for entry in entries]
+    for i, e in enumerate(entries, 1):
+        print(f"[{i}] {e.title.split(' (')[0].strip()}")
 
-    for i, title in enumerate(titles, 1):
-        print(f"[{i}] {title} | {links[i-1]}")
-
-    choice = input("\n[?] Choose a movie/show to stream: ").strip()
+    choice = input("\n[?] Choose movie to fetch magnets: ").strip()
     if not choice.isdigit() or not (1 <= int(choice) <= len(entries)):
-        print("❌ Invalid choice.")
+        print("❌ Invalid selection.")
         return
 
-    index = int(choice) - 1
-    chosen_entry = entries[index]
-    description = extract_description(chosen_entry)
-    magnet_links = extract_magnet_links(description)
+    e = entries[int(choice) - 1]
+    print(f"\n📌 Fetching magnets from post: {e.title}")
+    desc = fetch_post_description(e.link)
+    magnets = extract_magnet_links(desc)
 
-    if not magnet_links:
+    if not magnets:
         print("❌ No magnet links found.")
         return
 
-    print("\n🎞️ Available Streams:\n")
-    for i, (quality, _) in enumerate(magnet_links, 1):
-        print(f"[{i}] {quality}")
+    print("\n🎞️ Available Streams:")
+    for j, (label, _) in enumerate(magnets, 1):
+        print(f"[{j}] {label}")
 
-    stream_choice = input("\n[?] Choose a stream to play (or press Enter to cancel): ").strip()
-    if not stream_choice.isdigit() or not (1 <= int(stream_choice) <= len(magnet_links)):
+    sel = input("\n[?] Choose a stream to play (or press Enter cancel): ").strip()
+    if not sel.isdigit() or not (1 <= int(sel) <= len(magnets)):
         print("❌ Cancelled.")
         return
 
-    selected_link = magnet_links[int(stream_choice) - 1][1]
-    print(f"\n🚀 Launching stream with mpv: {selected_link}\n")
-    
+    magnet = magnets[int(sel) - 1][1]
+    print(f"\n🚀 Streaming via mpv:\n{magnet}\n")
+
     try:
-        subprocess.run(["mpv", selected_link])
+        subprocess.run(["mpv", magnet])
     except FileNotFoundError:
-        print("❌ mpv is not installed or not found in PATH.")
-        print("👉 Install with: sudo pacman -S mpv")
+        print("❌ mpv not found. Install it with: sudo pacman -S mpv")
 
 if __name__ == "__main__":
     main()
